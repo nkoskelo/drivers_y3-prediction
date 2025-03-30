@@ -149,6 +149,10 @@ from arraycontext import outer
 from grudge.trace_pair import interior_trace_pairs, tracepair_with_discr_tag
 from meshmode.discretization.connection import FACE_RESTR_ALL
 from mirgecom.flux import num_flux_central
+from arraycontext.parameter_study import ParameterStudyAxisTag
+
+class MyStudy(ParameterStudyAxisTag):
+    pass
 
 
 @with_container_arithmetic(bcast_obj_array=False,
@@ -1374,6 +1378,7 @@ def main(actx_class, restart_filename=None, target_filename=None,
          disable_fallbacks=False):
 
     allow_fallbacks = not disable_fallbacks
+    allow_fallbacks = True
     # control log messages
     logger = logging.getLogger(__name__)
     logger.propagate = False
@@ -1429,44 +1434,44 @@ def main(actx_class, restart_filename=None, target_filename=None,
     from mirgecom.io import read_and_distribute_yaml_data
     input_data = read_and_distribute_yaml_data(comm, user_input_file)
 
-    use_callbacks = configurate("use_callbacks", input_data, True)
-
-    use_gmsh = configurate("use_gmsh", input_data, True)
     from mirgecom.array_context import initialize_actx, actx_class_is_profiling
-    use_tpe = configurate("use_tensor_product_elements", input_data, False)
 
     actx = initialize_actx(actx_class, comm,
                            use_axis_tag_inference_fallback=allow_fallbacks,
                            use_einsum_inference_fallback=allow_fallbacks)
+    use_callbacks = configurate(actx, MyStudy, "use_callbacks", input_data, True)
+
+    use_gmsh = configurate(actx, MyStudy, "use_gmsh", input_data, True)
+    use_tpe = configurate(actx, MyStudy, "use_tensor_product_elements", input_data, False)
     queue = getattr(actx, "queue", None)
     use_profiling = actx_class_is_profiling(actx_class)
     alloc = getattr(actx, "allocator", None)
 
     # i/o frequencies
-    nviz = configurate("nviz", input_data, 500)
-    nrestart = configurate("nrestart", input_data, 5000)
-    nhealth = configurate("nhealth", input_data, 1)
-    nstatus = configurate("nstatus", input_data, 1)
+    nviz = configurate(actx, MyStudy, "nviz", input_data, 500)
+    nrestart = configurate(actx, MyStudy, "nrestart", input_data, 5000)
+    nhealth = configurate(actx, MyStudy, "nhealth", input_data, 1)
+    nstatus = configurate(actx, MyStudy, "nstatus", input_data, 1)
 
     # garbage collection frequency
-    ngarbage = configurate("ngarbage", input_data, 10)
+    ngarbage = configurate(actx, MyStudy, "ngarbage", input_data, 10)
 
     # verbosity for what gets written to viz dumps, increase for more stuff
-    viz_level = configurate("viz_level", input_data, 1)
+    viz_level = configurate(actx, MyStudy, "viz_level", input_data, 1)
     # control the time interval for writing viz dumps
-    viz_interval_type = configurate("viz_interval_type", input_data, 0)
+    viz_interval_type = configurate(actx, MyStudy, "viz_interval_type", input_data, 0)
 
     # default timestepping control
-    advance_time = configurate("advance_time", input_data, True)
-    integrator = configurate("integrator", input_data, "rk4")
-    current_dt = configurate("current_dt", input_data, 1.e-8)
-    t_final = configurate("t_final", input_data, 1.e-7)
-    t_viz_interval = configurate("t_viz_interval", input_data, 1.e-8)
-    current_cfl = configurate("current_cfl", input_data, 1.0)
-    constant_cfl = configurate("constant_cfl", input_data, False)
+    advance_time = configurate(actx, MyStudy, "advance_time", input_data, True)
+    integrator = configurate(actx, MyStudy, "integrator", input_data, "rk4")
+    current_dt = configurate(actx, MyStudy, "current_dt", input_data, 1.e-8)
+    t_final = configurate(actx, MyStudy, "t_final", input_data, 1.e-7)
+    t_viz_interval = configurate(actx, MyStudy, "t_viz_interval", input_data, 1.e-8)
+    current_cfl = configurate(actx, MyStudy, "current_cfl", input_data, 1.0)
+    constant_cfl = configurate(actx, MyStudy, "constant_cfl", input_data, False)
 
     # these are modified below for a restart
-    current_t = configurate("current_t", input_data, 0.0)
+    current_t = configurate(actx, MyStudy, "current_t", input_data, 0.0)
     t_start = 0.
     t_wall_start = 0.
     current_step = 0
@@ -1475,85 +1480,85 @@ def main(actx_class, restart_filename=None, target_filename=None,
     force_eval = True
 
     # default health status bounds
-    health_pres_min = configurate("health_pres_min", input_data, 0.1)
-    health_pres_max = configurate("health_pres_max", input_data, 2.e6)
-    health_temp_min = configurate("health_temp_min", input_data, 1.0)
-    health_temp_max = configurate("health_temp_max", input_data, 5000.)
-    health_mass_frac_min = configurate("health_mass_frac_min", input_data, -1.0)
-    health_mass_frac_max = configurate("health_mass_frac_max", input_data, 2.0)
+    health_pres_min = configurate(actx, MyStudy, "health_pres_min", input_data, 0.1)
+    health_pres_max = configurate(actx, MyStudy, "health_pres_max", input_data, 2.e6)
+    health_temp_min = configurate(actx, MyStudy, "health_temp_min", input_data, 1.0)
+    health_temp_max = configurate(actx, MyStudy, "health_temp_max", input_data, 5000.)
+    health_mass_frac_min = configurate(actx, MyStudy, "health_mass_frac_min", input_data, -1.0)
+    health_mass_frac_max = configurate(actx, MyStudy, "health_mass_frac_max", input_data, 2.0)
 
     # discretization and model control
-    order = configurate("order", input_data, 2)
-    viz_order = configurate("viz_order", input_data, order)
-    quadrature_order = configurate("quadrature_order", input_data, -1)
-    alpha_sc = configurate("alpha_sc", input_data, 0.3)
-    kappa_sc = configurate("kappa_sc", input_data, 0.5)
-    s0_sc = configurate("s0_sc", input_data, -5.0)
+    order = configurate(actx, MyStudy, "order", input_data, 2)
+    viz_order = configurate(actx, MyStudy, "viz_order", input_data, order)
+    quadrature_order = configurate(actx, MyStudy, "quadrature_order", input_data, -1)
+    alpha_sc = configurate(actx, MyStudy, "alpha_sc", input_data, 0.3)
+    kappa_sc = configurate(actx, MyStudy, "kappa_sc", input_data, 0.5)
+    s0_sc = configurate(actx, MyStudy, "s0_sc", input_data, -5.0)
 
-    drop_order_strength = configurate("drop_order_strength", input_data, 0.)
+    drop_order_strength = configurate(actx, MyStudy, "drop_order_strength", input_data, 0.)
     use_drop_order = False
     if drop_order_strength > 0.:
         use_drop_order = True
 
-    av2_mu0 = configurate("av2_mu0", input_data, 0.1)
-    av2_beta0 = configurate("av2_beta0", input_data, 6.0)
-    av2_kappa0 = configurate("av2_kappa0", input_data, 1.0)
-    av2_d0 = configurate("av2_d0", input_data, 0.1)
-    av2_prandtl0 = configurate("av2_prandtl0", input_data, 0.9)
-    av2_mu_s0 = configurate("av2_mu_s0", input_data, 0.)
-    av2_kappa_s0 = configurate("av2_kappa_s0", input_data, 0.)
-    av2_beta_s0 = configurate("av2_beta_s0", input_data, 0.01)
-    av2_d_s0 = configurate("av2_d_s0", input_data, 0.)
-    smooth_char_length = configurate("smooth_char_length", input_data, 5)
-    smooth_char_length_alpha = configurate("smooth_char_length_alpha",
+    av2_mu0 = configurate(actx, MyStudy, "av2_mu0", input_data, 0.1)
+    av2_beta0 = configurate(actx, MyStudy, "av2_beta0", input_data, 6.0)
+    av2_kappa0 = configurate(actx, MyStudy, "av2_kappa0", input_data, 1.0)
+    av2_d0 = configurate(actx, MyStudy, "av2_d0", input_data, 0.1)
+    av2_prandtl0 = configurate(actx, MyStudy, "av2_prandtl0", input_data, 0.9)
+    av2_mu_s0 = configurate(actx, MyStudy, "av2_mu_s0", input_data, 0.)
+    av2_kappa_s0 = configurate(actx, MyStudy, "av2_kappa_s0", input_data, 0.)
+    av2_beta_s0 = configurate(actx, MyStudy, "av2_beta_s0", input_data, 0.01)
+    av2_d_s0 = configurate(actx, MyStudy, "av2_d_s0", input_data, 0.)
+    smooth_char_length = configurate(actx, MyStudy, "smooth_char_length", input_data, 5)
+    smooth_char_length_alpha = configurate(actx, MyStudy, "smooth_char_length_alpha",
                                            input_data, 0.025)
     use_smoothed_char_length = False
     if smooth_char_length > 0:
         use_smoothed_char_length = True
 
-    smoothness_alpha = configurate("smoothness_alpha", input_data, 0.1)
-    smoothness_tau = configurate("smoothness_tau", input_data, 0.01)
+    smoothness_alpha = configurate(actx, MyStudy, "smoothness_alpha", input_data, 0.1)
+    smoothness_tau = configurate(actx, MyStudy, "smoothness_tau", input_data, 0.01)
 
-    dim = configurate("dimen", input_data, 2)
-    inv_num_flux = configurate("inv_num_flux", input_data, "rusanov")
-    mesh_filename = configurate("mesh_filename", input_data, "data/actii_2d.msh")
-    generate_mesh = configurate("generate_mesh", input_data, True)
-    mesh_partition_prefix = configurate("mesh_partition_prefix",
+    dim = configurate(actx, MyStudy, "dimen", input_data, 2)
+    inv_num_flux = configurate(actx, MyStudy, "inv_num_flux", input_data, "rusanov")
+    mesh_filename = configurate(actx, MyStudy, "mesh_filename", input_data, "data/actii_2d.msh")
+    generate_mesh = configurate(actx, MyStudy, "generate_mesh", input_data, True)
+    mesh_partition_prefix = configurate(actx, MyStudy, "mesh_partition_prefix",
                                         input_data, "actii_2d")
-    periodic_mesh = configurate("periodic_mesh", input_data, "False")
-    noslip = configurate("noslip", input_data, True)
-    use_1d_part = configurate("use_1d_part", input_data, True)
-    part_tol = configurate("partition_tolerance", input_data, 0.01)
+    periodic_mesh = configurate(actx, MyStudy, "periodic_mesh", input_data, "False")
+    noslip = configurate(actx, MyStudy, "noslip", input_data, True)
+    use_1d_part = configurate(actx, MyStudy, "use_1d_part", input_data, True)
+    part_tol = configurate(actx, MyStudy, "partition_tolerance", input_data, 0.01)
 
     # setting these to none in the input file toggles the check for that
     # boundary off provides support for legacy runs only where you could
     # specify boundary tags that were unused in certain cases
-    use_outflow_boundary = configurate(
+    use_outflow_boundary = configurate(actx, MyStudy, 
         "use_outflow_boundary", input_data, "none")
-    use_inflow_boundary = configurate(
+    use_inflow_boundary = configurate(actx, MyStudy, 
         "use_inflow_boundary", input_data, "none")
-    use_flow_boundary = configurate(
+    use_flow_boundary = configurate(actx, MyStudy, 
         "use_flow_boundary", input_data, "prescribed")
-    use_injection_boundary = configurate(
+    use_injection_boundary = configurate(actx, MyStudy, 
         "use_injection_boundary", input_data, "none")
-    use_upstream_injection_boundary = configurate(
+    use_upstream_injection_boundary = configurate(actx, MyStudy, 
         "use_upstream_injection_boundary", input_data, "none")
-    use_wall_boundary = configurate(
+    use_wall_boundary = configurate(actx, MyStudy, 
         "use_wall_boundary", input_data, "isothermal_noslip")
-    use_interface_boundary = configurate(
+    use_interface_boundary = configurate(actx, MyStudy, 
         "use_interface_boundary", input_data, "none")
-    use_symmetry_boundary = configurate(
+    use_symmetry_boundary = configurate(actx, MyStudy, 
         "use_symmetry_boundary", input_data, "none")
-    use_slip_wall_boundary = configurate(
+    use_slip_wall_boundary = configurate(actx, MyStudy, 
         "use_slip_wall_boundary", input_data, "none")
-    use_noslip_wall_boundary = configurate(
+    use_noslip_wall_boundary = configurate(actx, MyStudy, 
         "use_noslip_wall_boundary", input_data, "none")
 
-    outflow_pressure = configurate("outflow_pressure", input_data, 100.0)
-    ramp_beginP = configurate("ramp_beginP", input_data, 100.0)
-    ramp_endP = configurate("ramp_endP", input_data, 1000.0)
-    ramp_time_start = configurate("ramp_time_start", input_data, 0.0)
-    ramp_time_interval = configurate("ramp_time_interval", input_data, 1.e-4)
+    outflow_pressure = configurate(actx, MyStudy, "outflow_pressure", input_data, 100.0)
+    ramp_beginP = configurate(actx, MyStudy, "ramp_beginP", input_data, 100.0)
+    ramp_endP = configurate(actx, MyStudy, "ramp_endP", input_data, 1000.0)
+    ramp_time_start = configurate(actx, MyStudy, "ramp_time_start", input_data, 0.0)
+    ramp_time_interval = configurate(actx, MyStudy, "ramp_time_interval", input_data, 1.e-4)
 
     # for each tagged boundary surface, what are they assigned to be
     # isothermal wall -> wall when current running simulation support is not needed
@@ -1597,55 +1602,55 @@ def main(actx_class, restart_filename=None, target_filename=None,
         boundary_type_sanity(bnd, bndry_config[bnd])
 
     # material properties and models options
-    gas_mat_prop = configurate("gas_mat_prop", input_data, 0)
-    nspecies = configurate("nspecies", input_data, 0)
+    gas_mat_prop = configurate(actx, MyStudy, "gas_mat_prop", input_data, 0)
+    nspecies = configurate(actx, MyStudy, "nspecies", input_data, 0)
 
-    spec_diff = configurate("spec_diff", input_data, 1.e-4)
-    eos_type = configurate("eos", input_data, 0)
-    transport_type = configurate("transport", input_data, 0)
-    use_lewis_transport = configurate("use_lewis_transport", input_data, False)
+    spec_diff = configurate(actx, MyStudy, "spec_diff", input_data, 1.e-4)
+    eos_type = configurate(actx, MyStudy, "eos", input_data, 0)
+    transport_type = configurate(actx, MyStudy, "transport", input_data, 0)
+    use_lewis_transport = configurate(actx, MyStudy, "use_lewis_transport", input_data, False)
     # for pyrometheus, number of newton iterations
-    pyro_temp_iter = configurate("pyro_temp_iter", input_data, 3)
+    pyro_temp_iter = configurate(actx, MyStudy, "pyro_temp_iter", input_data, 3)
     # for pyrometheus, toleranace for temperature residual
-    pyro_temp_tol = configurate("pyro_temp_tol", input_data, 1.e-4)
+    pyro_temp_tol = configurate(actx, MyStudy, "pyro_temp_tol", input_data, 1.e-4)
 
     # for overwriting the default fluid material properties
-    fluid_gamma = configurate("fluid_gamma", input_data, -1.)
-    fluid_mw = configurate("fluid_mw", input_data, -1.)
-    fluid_kappa = configurate("fluid_kappa", input_data, -1.)
-    fluid_mu = configurate("mu", input_data, -1.)
+    fluid_gamma = configurate(actx, MyStudy, "fluid_gamma", input_data, -1.)
+    fluid_mw = configurate(actx, MyStudy, "fluid_mw", input_data, -1.)
+    fluid_kappa = configurate(actx, MyStudy, "fluid_kappa", input_data, -1.)
+    fluid_mu = configurate(actx, MyStudy, "mu", input_data, -1.)
 
     # rhs control
-    use_axisymmetric = configurate("use_axisymmetric", input_data, False)
-    use_combustion = configurate("use_combustion", input_data, True)
-    use_wall = configurate("use_wall", input_data, True)
-    use_wall_ox = configurate("use_wall_ox", input_data, True)
-    use_wall_mass = configurate("use_wall_mass", input_data, True)
-    use_ignition = configurate("use_ignition", input_data, 0)
-    use_injection_source = configurate("use_injection_source", input_data, True)
-    use_injection_source_comb = configurate("use_injection_source_comb",
+    use_axisymmetric = configurate(actx, MyStudy, "use_axisymmetric", input_data, False)
+    use_combustion = configurate(actx, MyStudy, "use_combustion", input_data, True)
+    use_wall = configurate(actx, MyStudy, "use_wall", input_data, True)
+    use_wall_ox = configurate(actx, MyStudy, "use_wall_ox", input_data, True)
+    use_wall_mass = configurate(actx, MyStudy, "use_wall_mass", input_data, True)
+    use_ignition = configurate(actx, MyStudy, "use_ignition", input_data, 0)
+    use_injection_source = configurate(actx, MyStudy, "use_injection_source", input_data, True)
+    use_injection_source_comb = configurate(actx, MyStudy, "use_injection_source_comb",
                                             input_data, False)
-    use_injection = configurate("use_injection", input_data, True)
-    init_injection = configurate("init_injection", input_data, False)
-    use_upstream_injection = configurate("use_upstream_injection", input_data, False)
+    use_injection = configurate(actx, MyStudy, "use_injection", input_data, True)
+    init_injection = configurate(actx, MyStudy, "init_injection", input_data, False)
+    use_upstream_injection = configurate(actx, MyStudy, "use_upstream_injection", input_data, False)
 
     # outflow sponge location and strength
-    use_sponge = configurate("use_sponge", input_data, True)
-    use_time_dependent_sponge = configurate("use_time_dependent_sponge",
+    use_sponge = configurate(actx, MyStudy, "use_sponge", input_data, True)
+    use_time_dependent_sponge = configurate(actx, MyStudy, "use_time_dependent_sponge",
                                             input_data, False)
-    sponge_sigma = configurate("sponge_sigma", input_data, 1.0)
+    sponge_sigma = configurate(actx, MyStudy, "sponge_sigma", input_data, 1.0)
 
     # artificial viscosity control
     #    0 - none
     #    1 - physical viscosity based, div(velocity) indicator
     #    2 - physical viscosity based, indicators and diffusion for all transport
-    use_av = configurate("use_av", input_data, 0)
+    use_av = configurate(actx, MyStudy, "use_av", input_data, 0)
 
     # species limiter
     #    0 - none
     #    1 - limit in on call to make_fluid_state
-    use_species_limiter = configurate("use_species_limiter", input_data, 0)
-    limiter_smin = configurate("limiter_smin", input_data, 10)
+    use_species_limiter = configurate(actx, MyStudy, "use_species_limiter", input_data, 0)
+    limiter_smin = configurate(actx, MyStudy, "limiter_smin", input_data, 10)
 
     # Filtering is implemented according to HW Sec. 5.3
     # The modal response function is e^-(alpha * eta ^ 2s), where
@@ -1666,147 +1671,147 @@ def main(actx_class, restart_filename=None, target_filename=None,
     # --- Filtering settings ---
     # ------ Solution filtering
     # filter every *nfilter* steps (-1 = no filtering)
-    soln_nfilter = configurate("soln_nfilter", input_data, -1)
-    soln_filter_frac = configurate("soln_filter_frac", input_data, 0.5)
-    soln_filter_cutoff = configurate("soln_filter_cutoff", input_data, -1)
-    soln_filter_order = configurate("soln_filter_order", input_data, 8)
+    soln_nfilter = configurate(actx, MyStudy, "soln_nfilter", input_data, -1)
+    soln_filter_frac = configurate(actx, MyStudy, "soln_filter_frac", input_data, 0.5)
+    soln_filter_cutoff = configurate(actx, MyStudy, "soln_filter_cutoff", input_data, -1)
+    soln_filter_order = configurate(actx, MyStudy, "soln_filter_order", input_data, 8)
 
     # Alpha value suggested by:
     # JSH/TW Nodal DG Methods, Section 5.3
     # DOI: 10.1007/978-0-387-72067-8
     soln_filter_alpha_default = -1.0*np.log(np.finfo(float).eps)
-    soln_filter_alpha = configurate("soln_filter_alpha", input_data,
+    soln_filter_alpha = configurate(actx, MyStudy, "soln_filter_alpha", input_data,
                                     soln_filter_alpha_default)
     # ------ RHS filtering
-    use_rhs_filter = configurate("use_rhs_filter", input_data, False)
-    rhs_filter_frac = configurate("rhs_filter_frac", input_data, 0.5)
-    rhs_filter_cutoff = configurate("rhs_filter_cutoff", input_data, -1)
-    rhs_filter_order = configurate("rhs_filter_order", input_data, 8)
-    rhs_filter_alpha = configurate("rhs_filter_alpha", input_data,
+    use_rhs_filter = configurate(actx, MyStudy, "use_rhs_filter", input_data, False)
+    rhs_filter_frac = configurate(actx, MyStudy, "rhs_filter_frac", input_data, 0.5)
+    rhs_filter_cutoff = configurate(actx, MyStudy, "rhs_filter_cutoff", input_data, -1)
+    rhs_filter_order = configurate(actx, MyStudy, "rhs_filter_order", input_data, 8)
+    rhs_filter_alpha = configurate(actx, MyStudy, "rhs_filter_alpha", input_data,
                                    soln_filter_alpha_default)
 
     # initialization configuration
-    init_case = configurate("init_case", input_data, "y3prediction")
-    actii_init_case = configurate("actii_init_case", input_data, "cav5")
+    init_case = configurate(actx, MyStudy, "init_case", input_data, "y3prediction")
+    actii_init_case = configurate(actx, MyStudy, "actii_init_case", input_data, "cav5")
 
     # Shock 1D flow properties
-    pres_bkrnd = configurate("pres_bkrnd", input_data, 100.)
-    temp_bkrnd = configurate("temp_bkrnd", input_data, 300.)
-    mach = configurate("mach", input_data, 2.0)
-    shock_loc_x = configurate("shock_loc_x", input_data, 0.05)
-    fuel_loc_x = configurate("fuel_loc_x", input_data, 0.07)
-    inlet_height = configurate("inlet_height", input_data, 0.013)
+    pres_bkrnd = configurate(actx, MyStudy, "pres_bkrnd", input_data, 100.)
+    temp_bkrnd = configurate(actx, MyStudy, "temp_bkrnd", input_data, 300.)
+    mach = configurate(actx, MyStudy, "mach", input_data, 2.0)
+    shock_loc_x = configurate(actx, MyStudy, "shock_loc_x", input_data, 0.05)
+    fuel_loc_x = configurate(actx, MyStudy, "fuel_loc_x", input_data, 0.07)
+    inlet_height = configurate(actx, MyStudy, "inlet_height", input_data, 0.013)
 
     # Shock 1D mesh properties
-    mesh_size = configurate("mesh_size", input_data, 0.001)
-    bl_ratio = configurate("bl_ratio", input_data, 3)
-    interface_ratio = configurate("interface_ratio", input_data, 2)
-    transfinite = configurate("transfinite", input_data, False)
-    mesh_angle = configurate("mesh_angle", input_data, 0.)
+    mesh_size = configurate(actx, MyStudy, "mesh_size", input_data, 0.001)
+    bl_ratio = configurate(actx, MyStudy, "bl_ratio", input_data, 3)
+    interface_ratio = configurate(actx, MyStudy, "interface_ratio", input_data, 2)
+    transfinite = configurate(actx, MyStudy, "transfinite", input_data, False)
+    mesh_angle = configurate(actx, MyStudy, "mesh_angle", input_data, 0.)
 
     # Discontinuity flow properties
-    pres_left = configurate("pres_left", input_data, 100.)
-    pres_right = configurate("pres_right", input_data, 10.)
-    temp_left = configurate("temp_left", input_data, 400.)
-    temp_right = configurate("temp_right", input_data, 300.)
-    sigma_disc = configurate("sigma_disc", input_data, 10.)
+    pres_left = configurate(actx, MyStudy, "pres_left", input_data, 100.)
+    pres_right = configurate(actx, MyStudy, "pres_right", input_data, 10.)
+    temp_left = configurate(actx, MyStudy, "temp_left", input_data, 400.)
+    temp_right = configurate(actx, MyStudy, "temp_right", input_data, 300.)
+    sigma_disc = configurate(actx, MyStudy, "sigma_disc", input_data, 10.)
 
     # mixing layer flow properties
-    vorticity_thickness = configurate("vorticity_thickness", input_data, 0.32e-3)
+    vorticity_thickness = configurate(actx, MyStudy, "vorticity_thickness", input_data, 0.32e-3)
 
     # ACTII flow properties
-    total_pres_inflow = configurate("total_pres_inflow", input_data, 2.745e5)
-    total_temp_inflow = configurate("total_temp_inflow", input_data, 2076.43)
-    mf_o2 = configurate("mass_fraction_o2", input_data, 0.273)
+    total_pres_inflow = configurate(actx, MyStudy, "total_pres_inflow", input_data, 2.745e5)
+    total_temp_inflow = configurate(actx, MyStudy, "total_temp_inflow", input_data, 2076.43)
+    mf_o2 = configurate(actx, MyStudy, "mass_fraction_o2", input_data, 0.273)
 
     # injection flow properties
-    total_pres_inj = configurate("total_pres_inj", input_data, 50400.)
-    total_temp_inj = configurate("total_temp_inj", input_data, 300.)
-    total_pres_inj_upstream = configurate("total_pres_inj_upstream",
+    total_pres_inj = configurate(actx, MyStudy, "total_pres_inj", input_data, 50400.)
+    total_temp_inj = configurate(actx, MyStudy, "total_temp_inj", input_data, 300.)
+    total_pres_inj_upstream = configurate(actx, MyStudy, "total_pres_inj_upstream",
                                           input_data, total_pres_inj)
-    total_temp_inj_upstream = configurate("total_temp_inj_upstream",
+    total_temp_inj_upstream = configurate(actx, MyStudy, "total_temp_inj_upstream",
                                           input_data, total_temp_inj)
-    mach_inj = configurate("mach_inj", input_data, 1.0)
+    mach_inj = configurate(actx, MyStudy, "mach_inj", input_data, 1.0)
 
     # parameters to adjust the shape of the initialization
-    vel_sigma = configurate("vel_sigma", input_data, 1000)
-    temp_sigma = configurate("temp_sigma", input_data, 1250)
+    vel_sigma = configurate(actx, MyStudy, "vel_sigma", input_data, 1000)
+    temp_sigma = configurate(actx, MyStudy, "temp_sigma", input_data, 1250)
     # adjusted to match the mass flow rate
-    vel_sigma_inj = configurate("vel_sigma_inj", input_data, 5000)
-    temp_sigma_inj = configurate("temp_sigma_inj", input_data, 5000)
-    temp_wall = configurate("wall_temperature", input_data, 300)
+    vel_sigma_inj = configurate(actx, MyStudy, "vel_sigma_inj", input_data, 5000)
+    temp_sigma_inj = configurate(actx, MyStudy, "temp_sigma_inj", input_data, 5000)
+    temp_wall = configurate(actx, MyStudy, "wall_temperature", input_data, 300)
 
     # wall stuff
-    wall_penalty_amount = configurate("wall_penalty_amount", input_data, 0)
-    wall_time_scale = configurate("wall_time_scale", input_data, 1)
-    wall_material = configurate("wall_material", input_data, 0)
+    wall_penalty_amount = configurate(actx, MyStudy, "wall_penalty_amount", input_data, 0)
+    wall_time_scale = configurate(actx, MyStudy, "wall_time_scale", input_data, 1)
+    wall_material = configurate(actx, MyStudy, "wall_material", input_data, 0)
 
     # use fluid average diffusivity by default
     wall_insert_ox_diff = spec_diff
 
     # Averaging from https://www.azom.com/article.aspx?ArticleID=1630
     # for graphite
-    wall_insert_rho = configurate("wall_insert_rho", input_data, 1625)
-    wall_insert_cp = configurate("wall_insert_cp", input_data, 770)
-    wall_insert_kappa = configurate("wall_insert_kappa", input_data, 247.5)
+    wall_insert_rho = configurate(actx, MyStudy, "wall_insert_rho", input_data, 1625)
+    wall_insert_cp = configurate(actx, MyStudy, "wall_insert_cp", input_data, 770)
+    wall_insert_kappa = configurate(actx, MyStudy, "wall_insert_kappa", input_data, 247.5)
 
     # Averaging from http://www.matweb.com/search/datasheet.aspx?bassnum=MS0001
     # for steel
-    wall_surround_rho = configurate("wall_surround_rho", input_data, 7.9e3)
-    wall_surround_cp = configurate("wall_surround_cp", input_data, 470)
-    wall_surround_kappa = configurate("wall_surround_kappa", input_data, 48)
+    wall_surround_rho = configurate(actx, MyStudy, "wall_surround_rho", input_data, 7.9e3)
+    wall_surround_cp = configurate(actx, MyStudy, "wall_surround_cp", input_data, 470)
+    wall_surround_kappa = configurate(actx, MyStudy, "wall_surround_kappa", input_data, 48)
 
     # initialize the ignition spark
-    spark_init_time = configurate("ignition_init_time", input_data, 999999999.)
-    spark_strength = configurate("ignition_strength", input_data, 2.e7)
-    spark_duration = configurate("ignition_duration", input_data, 1.e-8)
-    spark_diameter = configurate("ignition_diameter", input_data, 0.0025)
-    spark_init_loc_x = configurate("ignition_init_loc_x", input_data, 0.677)
-    spark_init_loc_y = configurate("ignition_init_loc_y", input_data, -0.021)
-    spark_init_loc_z = configurate("ignition_init_loc_z", input_data, 0.0)
+    spark_init_time = configurate(actx, MyStudy, "ignition_init_time", input_data, 999999999.)
+    spark_strength = configurate(actx, MyStudy, "ignition_strength", input_data, 2.e7)
+    spark_duration = configurate(actx, MyStudy, "ignition_duration", input_data, 1.e-8)
+    spark_diameter = configurate(actx, MyStudy, "ignition_diameter", input_data, 0.0025)
+    spark_init_loc_x = configurate(actx, MyStudy, "ignition_init_loc_x", input_data, 0.677)
+    spark_init_loc_y = configurate(actx, MyStudy, "ignition_init_loc_y", input_data, -0.021)
+    spark_init_loc_z = configurate(actx, MyStudy, "ignition_init_loc_z", input_data, 0.0)
 
     # initialize the injection source
-    injection_source_init_time = configurate("injection_source_init_time",
+    injection_source_init_time = configurate(actx, MyStudy, "injection_source_init_time",
                                              input_data, 999999999.)
-    injection_source_ramp_time = configurate("injection_source_ramp_time",
+    injection_source_ramp_time = configurate(actx, MyStudy, "injection_source_ramp_time",
                                              input_data, 1.e-4)
-    injection_source_mass = configurate("injection_source_mass",
+    injection_source_mass = configurate(actx, MyStudy, "injection_source_mass",
                                         input_data, 2.)
-    injection_source_mom_x = configurate("injection_source_mom_x",
+    injection_source_mom_x = configurate(actx, MyStudy, "injection_source_mom_x",
                                          input_data, 3.)
-    injection_source_mom_y = configurate("injection_source_mom_y",
+    injection_source_mom_y = configurate(actx, MyStudy, "injection_source_mom_y",
                                          input_data, 3.)
-    injection_source_mom_z = configurate("injection_source_mom_z",
+    injection_source_mom_z = configurate(actx, MyStudy, "injection_source_mom_z",
                                          input_data, 0.)
-    injection_source_energy = configurate("injection_source_energy",
+    injection_source_energy = configurate(actx, MyStudy, "injection_source_energy",
                                           input_data, 1.e3)
-    injection_source_diameter = configurate("injection_source_diameter",
+    injection_source_diameter = configurate(actx, MyStudy, "injection_source_diameter",
                                             input_data, 0.0025)
-    injection_source_loc_x = configurate("injection_source_loc_x",
+    injection_source_loc_x = configurate(actx, MyStudy, "injection_source_loc_x",
                                               input_data, 0.677)
-    injection_source_loc_y = configurate("injection_source_loc_y",
+    injection_source_loc_y = configurate(actx, MyStudy, "injection_source_loc_y",
                                          input_data, -0.021)
-    injection_source_loc_z = configurate("injection_source_loc_z",
+    injection_source_loc_z = configurate(actx, MyStudy, "injection_source_loc_z",
                                          input_data, 0.0)
-    injection_source_loc_x_comb = configurate("injection_source_loc_x_comb",
+    injection_source_loc_x_comb = configurate(actx, MyStudy, "injection_source_loc_x_comb",
                                               input_data, 0.677)
-    injection_source_loc_y_comb = configurate("injection_source_loc_y_comb",
+    injection_source_loc_y_comb = configurate(actx, MyStudy, "injection_source_loc_y_comb",
                                          input_data, -0.021)
-    injection_source_loc_z_comb = configurate("injection_source_loc_z_comb",
+    injection_source_loc_z_comb = configurate(actx, MyStudy, "injection_source_loc_z_comb",
                                          input_data, 0.0)
 
     # initialization for the sponge
-    inlet_sponge_x0 = configurate("inlet_sponge_x0", input_data, 0.225)
-    inlet_sponge_thickness = configurate("inlet_sponge_thickness", input_data, 0.015)
-    outlet_sponge_x0 = configurate("outlet_sponge_x0", input_data, 0.89)
-    outlet_sponge_thickness = configurate("outlet_sponge_thickness",
+    inlet_sponge_x0 = configurate(actx, MyStudy, "inlet_sponge_x0", input_data, 0.225)
+    inlet_sponge_thickness = configurate(actx, MyStudy, "inlet_sponge_thickness", input_data, 0.015)
+    outlet_sponge_x0 = configurate(actx, MyStudy, "outlet_sponge_x0", input_data, 0.89)
+    outlet_sponge_thickness = configurate(actx, MyStudy, "outlet_sponge_thickness",
                                           input_data, 0.04)
-    top_sponge_x0 = configurate("top_sponge_x0", input_data, 0.1)
-    top_sponge_thickness = configurate("outlet_sponge_thickness",
+    top_sponge_x0 = configurate(actx, MyStudy, "top_sponge_x0", input_data, 0.1)
+    top_sponge_thickness = configurate(actx, MyStudy, "outlet_sponge_thickness",
                                           input_data, 0.1)
-    inj_sponge_x0 = configurate("inj_sponge_x0", input_data, 0.645)
-    inj_sponge_thickness = configurate("inj_sponge_thickness", input_data, 0.005)
-    upstream_inj_sponge_y0 = configurate("upstream_inj_sponge_y0",
+    inj_sponge_x0 = configurate(actx, MyStudy, "inj_sponge_x0", input_data, 0.645)
+    inj_sponge_thickness = configurate(actx, MyStudy, "inj_sponge_thickness", input_data, 0.005)
+    upstream_inj_sponge_y0 = configurate(actx, MyStudy, "upstream_inj_sponge_y0",
                                          input_data, -0.01753)
 
     # param sanity check
@@ -2204,11 +2209,13 @@ def main(actx_class, restart_filename=None, target_filename=None,
     if nspecies > 3:
         eos_type = 1
 
-    pyro_mech_name = configurate("pyro_mech", input_data, "uiuc_sharp")
+    pyro_mech_name = configurate(actx, MyStudy, "pyro_mech", input_data, "uiuc_sharp")
     pyro_mech_name_full = f"y3prediction.pyro_mechs.{pyro_mech_name}"
 
     import importlib
     pyromechlib = importlib.import_module(pyro_mech_name_full)
+
+    multiple_pyro_files = configurate(actx, MyStudy, "multiple_arrhenius_parameters", input_data, None)
 
     if rank == 0:
         print("\n#### Simluation material properties: ####")
@@ -2288,17 +2295,37 @@ def main(actx_class, restart_filename=None, target_filename=None,
         eos_init = eos
     else:
         from mirgecom.thermochemistry import get_pyrometheus_wrapper_class
-        pyro_mech = get_pyrometheus_wrapper_class(
-            pyro_class=pyromechlib.Thermochemistry, temperature_niter=pyro_temp_iter,
-            zero_level=chem_source_tol)(actx.np)
-        eos = PyrometheusMixture(pyro_mech, temperature_guess=init_temperature)
-        # seperate gas model for initialization,
-        # just to make sure we get converged temperature
-        pyro_mech_init = get_pyrometheus_wrapper_class(
-            pyro_class=pyromechlib.Thermochemistry, temperature_niter=5,
-            zero_level=chem_source_tol)(actx.np)
-        eos_init = PyrometheusMixture(pyro_mech_init,
-                                      temperature_guess=init_temperature)
+        if multiple_pyro_files:
+            from y3prediction.pyro_mechs.nick_combine_mech_files_live import combine_multiple_pyro_files_into_one
+            breakpoint()
+            pyro_mech = combine_multiple_pyro_files_into_one(multiple_pyro_files,
+                                                             actx,
+                                                             chem_source_tol,
+                                                             pyro_temp_iter)
+
+
+            eos = PyrometheusMixture(pyro_mech, temperature_guess=init_temperature)
+            # seperate gas model for initialization,
+            # just to make sure we get converged temperature
+            pyro_mech_init = combine_multiple_pyro_files_into_one(multiple_pyro_files,
+                                                                  actx, chem_source_tol,
+                                                                  temperature_niter=5)
+            eos_init = PyrometheusMixture(pyro_mech_init,
+                                          temperature_guess=init_temperature)
+
+        else:
+
+            pyro_mech = get_pyrometheus_wrapper_class(
+                pyro_class=pyromechlib.Thermochemistry, temperature_niter=pyro_temp_iter,
+                zero_level=chem_source_tol)(actx.np)
+            eos = PyrometheusMixture(pyro_mech, temperature_guess=init_temperature)
+            # seperate gas model for initialization,
+            # just to make sure we get converged temperature
+            pyro_mech_init = get_pyrometheus_wrapper_class(
+                pyro_class=pyromechlib.Thermochemistry, temperature_niter=5,
+                zero_level=chem_source_tol)(actx.np)
+            eos_init = PyrometheusMixture(pyro_mech_init,
+                                          temperature_guess=init_temperature)
 
     # set the species names
     if eos_type == 0:
@@ -2355,7 +2382,7 @@ def main(actx_class, restart_filename=None, target_filename=None,
     for species in species_names:
         default_species_diffusivity[species] = spec_diff
 
-    input_species_diffusivity = configurate(
+    input_species_diffusivity = configurate(actx, MyStudy, 
         "species_diffusivity", input_data, default_species_diffusivity)
 
     # now read the diffusivities from input
@@ -2578,7 +2605,7 @@ def main(actx_class, restart_filename=None, target_filename=None,
         pressure1_total = pres_bkrnd*(1 + (gamma-1)/2*mach**2)**(gamma/(gamma-1))
         temperature1_total = temp_bkrnd*(1 + (gamma-1)/2*mach**2)
 
-        mach2 = vel_left[0]/np.sqrt(gamma2*pressure2/rho2)
+        mach2 = vel_left[0]/actx.np.sqrt(gamma2*pressure2/rho2)
         pressure2_total = pressure2*(1 + (gamma-1)/2*mach2**2)**(gamma/(gamma-1))
         temperature2_total = temperature2*(1 + (gamma-1)/2*mach2**2)
 
@@ -3422,6 +3449,7 @@ def main(actx_class, restart_filename=None, target_filename=None,
             sos = math.sqrt(gamma*pres_inflow/rho_inflow)
             inlet_gamma = gamma
         else:
+            breakpoint()
             rho_inflow = pyro_mech.get_density(p=pres_inflow,
                                               temperature=temp_inflow,
                                               mass_fractions=y)
@@ -5333,11 +5361,11 @@ def main(actx_class, restart_filename=None, target_filename=None,
     # linearly ramp the pressure from beginP to finalP over t_ramp_interval seconds
     # provides an offset to start the ramping after t_ramp_start
     #
-    inlet_mach = configurate("inlet_mach", input_data, 0.1)
-    ramp_beginP = configurate("ramp_beginP", input_data, 100.0)
-    ramp_endP = configurate("ramp_endP", input_data, 1000.0)
-    ramp_time_start = configurate("ramp_time_start", input_data, 0.0)
-    ramp_time_interval = configurate("ramp_time_interval", input_data, 1.e-4)
+    inlet_mach = configurate(actx, MyStudy, "inlet_mach", input_data, 0.1)
+    ramp_beginP = configurate(actx, MyStudy, "ramp_beginP", input_data, 100.0)
+    ramp_endP = configurate(actx, MyStudy, "ramp_endP", input_data, 1000.0)
+    ramp_time_start = configurate(actx, MyStudy, "ramp_time_start", input_data, 0.0)
+    ramp_time_interval = configurate(actx, MyStudy, "ramp_time_interval", input_data, 1.e-4)
 
     def inflow_ramp_pressure(t):
         return actx.np.where(
@@ -7321,6 +7349,7 @@ def main(actx_class, restart_filename=None, target_filename=None,
 
     pre_step_callback = my_pre_step if use_callbacks else None
     post_step_callback = my_post_step if use_callbacks else None
+    breakpoint()
     if advance_time:
         current_step, current_t, current_stepper_state_obj = \
             advance_state(rhs=my_rhs, timestepper=timestepper,
